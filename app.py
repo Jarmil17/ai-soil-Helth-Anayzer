@@ -1,55 +1,45 @@
-# app.py (final)
-import os, json, traceback
+# app.py
+import os, json, random
 import numpy as np
 import streamlit as st
-import tensorflow as tf
 from PIL import Image
 
-# No chdir needed: run this file from the project folder.
-
 # --------------- Page setup ---------------
-st.set_page_config(page_title="AI Soil Health Analyzer", page_icon="🌱")
-st.title("AI Soil Health Analyzer")
+st.set_page_config(page_title="AI Soil Health Analyzer (Mock)", page_icon="🌱")
+st.title("🌱 AI Soil Health Analyzer (Mock)")
 st.caption("Upload a soil photo to classify its type and get quick crop suggestions.")
 
-# --------------- Helpers ---------------
-@st.cache_resource
-def load_artifacts():
-    try:
-        model = tf.keras.models.load_model("soil_cnn_best.h5")
-        with open("class_indices.json") as f:
-            class_idx = json.load(f)
-        labels = list(class_idx.keys())
-        return model, labels, None
-    except Exception:
-        return None, None, traceback.format_exc()
+# --------------- Fake Model & Labels ---------------
+FAKE_LABELS = ["Alluvial", "Black", "Red", "Laterite", "Arid"]
 
-def preprocess(img: Image.Image, size=(128,128)):
+def fake_predict(img_array):
+    """Simulate a fake model prediction."""
+    probs = np.random.dirichlet(np.ones(len(FAKE_LABELS)), size=1)[0]
+    top_index = int(np.argmax(probs))
+    pred = FAKE_LABELS[top_index]
+    conf = float(probs[top_index])
+    return pred, conf, dict(zip(FAKE_LABELS, map(float, probs)))
+
+# Crop suggestions (you can edit this)
+CROP_SUGG = {
+    "Alluvial": ["Wheat", "Rice", "Sugarcane"],
+    "Black": ["Cotton", "Soybean", "Sunflower"],
+    "Red": ["Millet", "Groundnut", "Pulses"],
+    "Laterite": ["Tea", "Coffee", "Cashew"],
+    "Arid": ["Cactus", "Dates", "Barley"]
+}
+
+# --------------- Preprocessing (just to simulate real flow) ---------------
+def preprocess(img: Image.Image, size=(128, 128)):
     img = img.convert("RGB").resize(size)
     arr = np.asarray(img, dtype=np.float32) / 255.0
     return arr
 
-# --------------- Load model ---------------
-model, labels, err = load_artifacts()
-if err:
-    st.error("Failed to load model/labels. Ensure soil_cnn_best.h5 and class_indices.json are in the same folder as app.py.")
-    st.code(err)
-    st.stop()
-else:
-    st.success("Model loaded.")
-
-# Default crop suggestions (edit per your classes)
-CROP_SUGG = { lab: ["Wheat","Rice","Sugarcane"] for lab in labels }
-if len(labels) >= 4:
-    CROP_SUGG[labels[1]] = ["Maize","Potato","Pulses"]
-    CROP_SUGG[labels[2]] = ["Millet","Gram","Cotton"]
-    CROP_SUGG[labels[3]] = ["Horticulture","Cactus","Legumes"]
-
-# --------------- Uploader / Samples ---------------
-file = st.file_uploader("Upload soil image (JPG/PNG)", type=["jpg","jpeg","png"])
+# --------------- Upload / Sample Selection ---------------
+file = st.file_uploader("Upload soil image (JPG/PNG)", type=["jpg", "jpeg", "png"])
 
 if os.path.isdir("samples"):
-    samples = [f for f in os.listdir("samples") if f.lower().endswith((".jpg",".jpeg",".png"))]
+    samples = [f for f in os.listdir("samples") if f.lower().endswith((".jpg", ".jpeg", ".png"))]
 else:
     samples = []
 
@@ -59,24 +49,21 @@ if samples:
         if s != "-- select --":
             file = os.path.join("samples", s)
 
-# --------------- Predict ---------------
+# --------------- Prediction ---------------
 if file:
     img = Image.open(file) if isinstance(file, str) else Image.open(file)
     st.image(img, caption="Uploaded image", use_container_width=True)
 
-    x = preprocess(img)[None, ...]
-    y = model.predict(x, verbose=0)[0]
-    top = int(np.argmax(y))
-    pred = labels[top]
-    conf = float(y[top])
+    arr = preprocess(img)
+    pred, conf, all_probs = fake_predict(arr)
 
-    st.subheader(f"Prediction: {pred}")
-    st.metric("Confidence", f"{conf*100:.1f}%")
-    st.write("Suggested crops:", ", ".join(CROP_SUGG.get(pred, [])))
+    st.subheader(f"🧠 Predicted Soil Type: {pred}")
+    st.metric("Confidence", f"{conf * 100:.1f}%")
+    st.write("🌾 Suggested Crops:", ", ".join(CROP_SUGG.get(pred, [])))
 
-    st.write("Class probabilities")
-    st.bar_chart({labels[i]: float(y[i]) for i in range(len(labels))})
+    st.write("📊 Class Probabilities")
+    st.bar_chart(all_probs)
 
 # --------------- Footer ---------------
 with st.expander("About"):
-    st.write("CNN trained on soil images, input 128×128 RGB scaled to 0–1. For education and preliminary screening.")
+    st.write("🚨 This is a mock version for UI testing only. No real machine learning is used.")
